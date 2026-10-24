@@ -4,7 +4,7 @@
   new_project.py <ROOT> <NN> <课程名> <简称> --mainline 例题驱动 --input 单本教材 [--kicker ENGLISH] [--source "书名 第x章"]
     NN       两位编号，决定页面名 “NN 课程名.html”
     简称     文件夹前缀：资源/<简称>原图、资源/<简称>字体、制作记录/正文/<简称>正文1.md
-    mainline 用户选定的主线（见 references/mainlines.md）：课程类 例题驱动 | 概念体系 | 课堂顺序 | 题型归纳；领域类 问题驱动 | 发展脉络 | 概念体系 | 论文精读
+    mainline 用户选定的主线（见 references/mainlines.md）：课程类 例题驱动 | 真题驱动 | 概念体系 | 课堂顺序 | 题型归纳；领域类 问题驱动 | 发展脉络 | 概念体系 | 论文精读
     input    输入类型（见 references/inputs.md）：课堂转写 | 单本教材 | 领域 / 科研方向
 生成：
   ROOT/AGENTS.md                       项目入口（无则创建）
