@@ -32,14 +32,14 @@ S = 本 Skill 的 `scripts/`。ROOT = 讲义项目目录，按顺序取：环境
    - `python3 $S/new_project.py <ROOT> <NN> <课程名> <简称> --mainline <主线> --input <输入类型> --source "<书名/课程与范围>"`：建目录、构建配置、制作记录、目录页；已有项目里加一门课也用它。
 1. **盘点材料**：`python3 $S/new_materials.py <材料目录>`。课程是否每周只上一次、中间有没有缺课，要从转写的正文日期推断。
 2. **读材料**：
-   - 课堂转写：`python3 $S/extract_docx.py <scratchpad>/x <docx...>`，看输出里的 `head` 核对教师和正文日期；逐个 Read `chunk_K.txt`（每块约 1 万 token），**必须读完**，课间闲聊和噪声段快速略过，记下讲解思路、例题、口误和错误、作业线索；课件里的每道例题和练习记下页码，它们是讲义例题的首选来源。再 `python3 $S/contact_sheet.py sheets <x>/<stem>/index.json <scratchpad>/s`（最后一个参数是输出文件名前缀，生成 s_0.jpg…）看图，手写推导、作业页面要放大看清。
+   - 课堂转写：`python3 $S/extract_docx.py <scratchpad>/x <docx...>`，看输出里的 `head` 核对教师和正文日期；逐个 Read `chunk_K.txt`（每块约 1 万 token），**必须读完**，课间闲聊和噪声段快速略过，记下讲解思路、例题、口误和错误、作业线索；课件里的每道例题和练习记下页码，它们是讲义例题的首选来源。边读边按 `references/mainlines.md`“知识点清单”的五种来源记条目：题干里的术语、老师总结的方法、跨题的对比、老师停下来讨论或留的思考题、教材思考题。再 `python3 $S/contact_sheet.py sheets <x>/<stem>/index.json <scratchpad>/s`（最后一个参数是输出文件名前缀，生成 s_0.jpg…）看图，手写推导、作业页面要放大看清。
    - 教材（单独输入或作补充）：`python3 $S/textbook.py pages <pdf> <首页> <末页> <scratchpad>/tb`，逐页看图；文字层和 OCR **只做检索和定位**，题干、公式和图以页面图为准。细则见 `references/inputs.md`。
-3. **定范围、建覆盖表**：只写范围内的内容（课堂：已授课；教材：用户选的章节；领域：定好的主题和书单）；作业或例题需要的前置概念可少量补充，并在记录里说明。覆盖表写在本课制作记录的“## 覆盖表”：范围内每道课件题（例题和练习）、教材例题、章末习题、作业题，以及每个定义、定理、证明、应用各占一行，格式见 mainlines.md“例题驱动”。覆盖表保证不漏，不等于每道题都写进讲义：边缘题折叠或一句带过，同型题只记“同类”。
+3. **定范围、建覆盖表**：只写范围内的内容（课堂：已授课；教材：用户选的章节；领域：定好的主题和书单）；作业或例题需要的前置概念可少量补充，并在记录里说明。覆盖表写在本课制作记录的“## 覆盖表”：范围内每道课件题（例题和练习）、教材例题、章末习题、作业题，以及每个定义、定理、证明、应用各占一行，格式见 mainlines.md“例题驱动”。理论行按“知识点清单”从五种独立来源列（术语 / 对比 / 方法 / 课堂讨论 / 思考题），**不要从写好的正文里抄**：抄来的清单只能证明写了的都写了，查不出没写的。覆盖表保证不漏，不等于每道题都写进讲义：边缘题折叠或一句带过，同型题只记“同类”。
 4. **备份**：改已有讲义前，把旧的页面、正文 md 和入口页复制到 `ROOT/制作记录/修订前备份/<课程>v<N>/`。
 5. **裁图**：`contact_sheet.py grid` 叠坐标网格定裁切框，再 `contact_sheet.py crop spec.json ROOT/资源/<简称>原图`。正文里图片写 `资源/<简称>原图/xx.png`。
-6. **写正文**：按配置里的 `mainline` 组织（`references/mainlines.md` 有每种主线的小节顺序），格式按 standards；写到 `ROOT/制作记录/正文/<简称>正文N.md`，每块不超过约 25k 字符、一次写入。
+6. **写正文**：按配置里的 `mainline` 组织（`references/mainlines.md` 有每种主线的小节顺序），格式按 standards；写到 `ROOT/制作记录/正文/<简称>正文N.md`，每块不超过约 25k 字符、一次写入。每写完一个单元做“学生视角自查”（mainlines.md）：逐题问“这一步凭什么”，答不上来的补进清单和正文。
 7. **构建**：`python3 $S/build_all.py`（在 ROOT 里运行）。它对每个 `制作记录/构建/*构建配置.json` 跑 `build_lecture.py` 出底稿，再 `reader/derive.py` 生成根目录页面。只改了某一门课时也可以 `build_lecture.py <config>` + `reader/derive.py "<NN 课程>"`。改了 Skill 脚本时全部重建，并按 standards“复现”在副本里比对。本机没有思源宋体或 Anthropic 字体时会自动回退到系统字体，摘要里会提示。
-8. **格式与覆盖检查**：`python3 $S/format_check.py "ROOT/制作记录/构建/底稿/NN 课程.html"`，要求 `PASS`；它检查 mainlines.md 末尾“不随主线变化的格式”。再 `python3 $S/coverage_check.py "ROOT/制作记录/NN <简称>制作记录.md" "ROOT/制作记录/构建/底稿/NN 课程.html"`，要求 `PASS`：覆盖表每行都有讲义位置，且位置真实存在。
+8. **格式与覆盖检查**：`python3 $S/format_check.py "ROOT/制作记录/构建/底稿/NN 课程.html"`，要求 `PASS`；它检查 mainlines.md 末尾“不随主线变化的格式”。再 `python3 $S/coverage_check.py "ROOT/制作记录/NN <简称>制作记录.md" "ROOT/制作记录/构建/底稿/NN 课程.html"`，要求 `PASS`：覆盖表每行都有讲义位置，且位置真实存在；五类知识点来源都有行（或写明不适用）；每个术语在讲义里加粗出现。
 9. **数学核验**（每个中间式，不只是最终答案）：写 `ROOT/制作记录/核验/validate_<简称>.py`，用 fractions/sympy/枚举/模拟独立复核**每个数值结论和练习答案**，输出 json 报告。
 10. **阅读页面数据**：先 `python3 $S/reader/concept_map.py skeleton "<NN 课程>"`，按骨架**手工写** `ROOT/制作记录/概念关系/<NN 课程>.txt`（3 栏；没有它页面就没有“概念”视图，derive.py 会打印 ⚠）；再写 `词语荧光/<NN 课程>.txt`；用户要概念小标题、智慧区时才写第 4 栏和 `智慧/<NN 课程>.txt`（格式见 reader.md）。然后 `python3 $S/reader/derive.py "<NN 课程>"`（密集荧光自动补，不用写数据）。
 11. **桌面验收**：`python3 $S/desktop_qa.py "ROOT/NN 课程.html" <scratchpad>/qa/<简称> <锚点id...>`，要求 `PASS: true`（含阅读面板三种视图、原文、收起；长公式需要横向滚动不算问题）；只抽看 3—4 张截图。

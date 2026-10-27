@@ -5,6 +5,8 @@
 讲义位置写块标题的“类别 编号”（例 3、习题 5、P 2、定义 1、定理 2、结论 4）或小节 id（#fermat），可写多个。
 处理：讲解 / 习题 / 折叠 / 带过 / 同类。折叠、带过写所在小节 #id；同类写所依据的例题、结论（讲义里不出现）。
 打印 json：rows、by_type、by_handling、problems（必须为空）、length（篇幅提醒，不影响 PASS）。
+知识点要从五种独立来源列行（mainlines.md“知识点清单”）：类型 术语 / 对比 / 方法 / 课堂讨论 / 思考题 各至少一行，
+确实没有的在覆盖表一节写一行“不适用来源：对比（理由）”。类型为“术语”的行，术语本身（条目里“（”之前的部分）必须在讲义里加粗出现。
 覆盖表只保证不漏；讲义要紧凑：每小节例题不超过 2 道、小节习题不超过 3 道，边缘题折叠或带过。
 """
 import json, re, sys
@@ -13,6 +15,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 
 HANDLING = ('讲解', '习题', '折叠', '带过', '同类')
+SOURCES = ('术语', '对比', '方法', '课堂讨论', '思考题')   # 知识点清单的五种独立来源
 LABEL = re.compile(r'(例|习题|P|定义|定理|结论)\s*(\d+)')
 
 
@@ -121,9 +124,22 @@ def check(record, html):
             ids = [r[1:] for r in refs if r.startswith('#')]
             if not ids:
                 probs.append(f'折叠的题要写所在小节 #id：{item}')
-            elif not any(d.summary and d.summary.get_text().strip().startswith('更多课本习题')
+            elif not any(d.summary and d.summary.get_text().strip().startswith(('更多课本习题', '教材思考题'))
                          for i in ids for n in section_of(m, i) for d in ([n] if n.name == 'details' else n.find_all('details') if hasattr(n, 'find_all') else [])):
-                probs.append(f'{ids[0]} 小节里没有“更多课本习题”折叠栏：{item}')
+                probs.append(f'{ids[0]} 小节里没有“更多课本习题”或“教材思考题”折叠栏：{item}')
+    # 知识点来源：只从定义、定理块抄出来的理论行会漏掉方法、术语、对比和课堂讨论
+    md = Path(record).read_text()
+    waived = {s for ln in re.findall(r'^不适用来源[:：](.+)$', md, re.M) for s in SOURCES if s in ln}
+    kinds = {r[1] for r in rows}
+    for s in SOURCES:
+        if s not in kinds and s not in waived:
+            probs.append(f'覆盖表没有“{s}”类的行：按 mainlines.md“知识点清单”补列，确实没有就写“不适用来源：{s}（理由）”')
+    bold = {b.get_text(' ', strip=True) for b in m.find_all('strong')}
+    bold |= {t.get_text(' ', strip=True) for t in m.select('.block-title')}
+    for item, kind, loc, how in rows:
+        term = re.split(r'[（(]', item)[0].strip()
+        if kind == '术语' and not any(term in b for b in bold):
+            probs.append(f'术语没有在讲义里加粗给出：{term}')
     return {'PASS': not probs and bool(rows), 'rows': len(rows),
             'by_type': dict(Counter(r[1] or '未写类型' for r in rows)),
             'by_handling': dict(Counter(r[3] or ('同类' if r[2].startswith('同类') else '未写处理') for r in rows)),
