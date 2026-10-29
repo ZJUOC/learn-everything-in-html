@@ -2,14 +2,13 @@
 
 python3 derive.py [课程...]   默认全部课程
 步骤：同步 assets → 句子荧光（highlight.py）→ 词语荧光（keywords.py，有 txt 才做）→ 密集荧光（dense.py，LECTURE_DENSE=0 关闭）
-      → 概念小标题与智慧区（wisdom.py）→ 嵌入概念关系数据（concept_map.py）与手写区默认尺寸（trackpad_ink.py）。
-右栏三种视图（概念 / 大纲 / 地图）、原文模式、收起面板都由 assets/reader/reader.js 在页面里完成。
+      → 概念小标题与智慧区（wisdom.py）→ 嵌入概念关系数据（concept_map.py）。
+右栏三种视图（概念 / 大纲 / 地图）、右下公式区与智慧区、原文模式、收起面板都由 assets/reader/reader.js 在页面里完成。
 """
 import hashlib, json, os, re, sys
 from common import ROOT, REC, TOOLS, COURSES, sync_assets
 from highlight import process
 from concept_map import build
-from trackpad_ink import ink_size
 from keywords import apply as kw_apply
 from dense import apply as dense_apply
 from wisdom import apply as wisdom_apply
@@ -20,8 +19,6 @@ DENSE = os.environ.get('LECTURE_DENSE', '1') != '0'
 print('ROOT', ROOT, '课程', len(COURSES))
 sync_assets()
 ver = hashlib.sha1(b''.join((TOOLS / f).read_bytes() for f in ('reader.css', 'reader.js'))).hexdigest()[:8]
-iw, ih, src = ink_size()
-print(f'手写区默认 {iw}×{ih}（{src}）')
 report, missing = {}, []
 for c in sys.argv[1:] or COURSES:
     soup = BeautifulSoup(base(c).read_text(), 'html.parser')
@@ -50,7 +47,6 @@ for c in sys.argv[1:] or COURSES:
         if nh or nw or wp:
             msg.append(f'概念小标题 {nh} 个  智慧 {nw} 个单元' + (f'，{len(wp)} 个问题：' + '；'.join(wp) if wp else ''))
     blob = BeautifulSoup('<script id="concept-data" type="application/json"></script>', 'html.parser').script
-    blob['data-ink'] = f'{iw}x{ih}'
     blob.string = json.dumps(data, ensure_ascii=False).replace('</', '<\\/')
     soup.head.append(soup.new_tag('link', rel='stylesheet', href=f'资源/阅读器/reader.css?v={ver}'))
     soup.body.append(blob)

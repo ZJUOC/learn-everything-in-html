@@ -1,19 +1,16 @@
 /* 讲义阅读器（唯一来源：Skill assets/reader/）。一门课只有一个页面，右栏可切换三种视图：
    概念（手工整理的概念关系图，数据在 #concept-data）/ 大纲（当前章的定义、定理、结论、例题、关键词）/ 地图（全部句子荧光的卡片）。
-   右上：目录 + 视图；右下：手写笔记窗口的预留区，关闭手写区时显示智慧区（#wisdom-data）。
+   右上：目录 + 视图；右下：公式区（默认本单元的定义、定理、结论公式，可切全览），关闭公式区时显示智慧区（#wisdom-data）。
    “原文”去掉全部荧光；“×”收起面板，回到原讲义的左侧目录版面。 */
 (()=>{
 const KEY='lecture:'+location.pathname;
 const OLD='adhd-concept:'+location.pathname.replace(/\.html$/,encodeURIComponent('（ADHD概念图版）')+'.html');
 const load=()=>{try{return JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(OLD)||'{}')}catch(e){return{}}};
 const save=s=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}};
-// 手写区默认尺寸：生成时从 Trackpad Studio 手写小窗读出（data-ink），拖过紫点（cal）才用自己存的尺寸
 const CD=document.getElementById('concept-data');
-const DEF=((CD&&CD.dataset.ink||'').match(/^(\d+)x(\d+)$/)||[0,750,470]).slice(1).map(Number);
 const DATA=CD?JSON.parse(CD.textContent):{};
 const HAS_CONCEPT=Object.keys(DATA).length>0;
-const st=Object.assign({off:[],ink:true},load());
-if(!st.cal){st.iw=DEF[0];st.ih=DEF[1]}
+const st=Object.assign({off:[],fx:true},load());
 if(!st.view||(st.view==='concept'&&!HAS_CONCEPT))st.view=HAS_CONCEPT?'concept':'outline';
 const root=document.documentElement,main=document.querySelector('main');
 const CATS=[['thesis','结论','var(--hl-thesis-ink)','var(--hl-thesis)'],['claim','方法','var(--hl-claim-ink)','var(--hl-claim)'],
@@ -48,17 +45,15 @@ const goConcept=name=>{const hd=[...main.querySelectorAll('.cpt-head')].find(e=>
 const box=document.createElement('div');box.id='cmap';
 box.innerHTML=`<nav class="toc" aria-label="目录"><a class="back" href="开始阅读.html">← 课程讲义</a><div class="tl"></div></nav>
 <section class="map" aria-label="阅读面板"><header><span class="tabs" role="tablist"><button data-v="concept" title="概念关系：A → B 表示 B 用到 A">概念</button><button data-v="outline" title="本章概念大纲">大纲</button><button data-v="map" title="全部荧光句子">地图</button></span><span class="chap"></span>
-<button class="inkbtn" title="给右下角手写窗口留位置">手写区</button><button class="x" title="收起面板，回到原讲义版面" aria-label="收起面板">×</button></header>
+<button class="fxbtn" title="右下角显示公式区">公式</button><button class="x" title="收起面板，回到原讲义版面" aria-label="收起面板">×</button></header>
 <div class="body"></div><footer><span class="dots"></span><span class="hint">A → B：B 用到 A</span></footer></section>`;
-const zone=document.createElement('div');zone.id='ink-zone';
-zone.innerHTML='<span>手写笔记窗口</span><i class="grip" title="拖动对齐手写窗口的左上角；双击恢复默认"></i>';
 const reopen=document.createElement('button');reopen.id='cmap-open';reopen.textContent='阅读面板';
-document.body.append(box,zone,reopen);
+document.body.append(box,reopen);
 if(!HAS_CONCEPT)box.querySelector('[data-v=concept]').hidden=true;
-/* 智慧区（可选）：每个单元一棵括号树，在右下显示；打开手写区时收起 */
+/* 智慧区（可选）：每个单元一棵括号树，在右下显示；打开公式区时收起 */
 const WD=document.getElementById('wisdom-data'),WZ=WD?JSON.parse(WD.textContent):null;let wzBody=null,wzCur;
 if(WZ){root.classList.add('wz-on');const w=document.createElement('div');w.id='wisdom';
-  w.innerHTML='<header><b>智慧</b><span>这一单元的大局，打开手写区时收起</span></header><div class="body"></div>';
+  w.innerHTML='<header><b>智慧</b><span>这一单元的大局，打开公式区时收起</span></header><div class="body"></div>';
   document.body.append(w);wzBody=w.querySelector('.body')}
 function wisdom(id){if(!wzBody||id===wzCur)return;wzCur=id;const u=WZ[id];
   wzBody.innerHTML=u?(u.path?'<div class="wz-path">'+u.path+'</div>':'')+u.html:'<p class="empty">这一单元还没有整理。</p>';wzBody.scrollTop=0}
@@ -199,6 +194,63 @@ function renderMap(){
 }
 const filterCards=()=>body.querySelectorAll('.rm .card').forEach(k=>k.hidden=st.off.includes(k.dataset.c));
 
+/* 4d. 公式区：定义、定理、结论块里的行间公式（块里没有行间公式时取含“=”的行内公式，最多两个），加上正文里的带框公式；
+   折叠栏、例题、习题里的不收。默认只显示当前单元，“全览”显示全书并定位到当前单元。 */
+const fx=document.createElement('section');fx.id='formula';fx.setAttribute('aria-label','公式区');
+fx.innerHTML='<header><b>公式</b><span class="scope"></span><button class="all"></button></header><div class="body"></div>';
+document.body.append(fx);
+const fxBody=fx.querySelector('.body'),fxScope=fx.querySelector('.scope'),fxAll=fx.querySelector('.all');
+let FX=null,fxShown=null,fxSid=null;
+// 标题原样克隆（保留公式排版），去掉 id 和链接
+const rich=el=>{const c=el.cloneNode(true);c.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));c.querySelectorAll('a').forEach(a=>a.replaceWith(...a.childNodes));return [...c.childNodes]};
+function fxData(){
+  const secs=new Map();let cur=null;
+  for(const el of main.querySelectorAll('h2,h3,div.block,math[display=block]')){
+    if(/^H[23]$/.test(el.tagName)){if(!el.id)continue;cur={h:el,items:[]};secs.set(el,cur);continue}
+    if(!cur||el.closest('details'))continue;
+    if(el.tagName==='DIV'){
+      if(!/\b(definition|theorem|result)\b/.test(el.className))continue;
+      const tt=el.querySelector('.block-title');if(!tt)continue;
+      let ms=[...el.querySelectorAll('math[display=block]')].filter(m=>!m.closest('details'));
+      if(!ms.length)ms=[...el.querySelectorAll('math')].filter(m=>{const a=m.querySelector('annotation');return a&&a.textContent.includes('=')&&!m.closest('details')}).slice(0,2);
+      if(ms.length)cur.items.push({lab:tt,el,ms});continue}
+    if(el.closest('div.block'))continue;
+    const a=el.querySelector('annotation');if(a&&/\\boxed/.test(a.textContent))cur.items.push({lab:'',el,ms:[el]});
+  }
+  return secs;
+}
+function fxSec(h,isChap){
+  const s=FX.get(h);if(!s||!s.items.length)return null;
+  const d=document.createElement('div');d.className='fsec';d.dataset.sid=h.id;
+  const t=document.createElement('button');t.className='st';if(isChap)t.textContent='本章导入';else t.append(...rich(h));t.onclick=()=>jump(h);d.append(t);
+  for(const it of s.items){const b=document.createElement('button');b.className='fi';b.onclick=()=>jump(it.el);
+    if(it.lab){const k=document.createElement('span');k.className='k';k.append(...rich(it.lab));b.append(k)}
+    for(const m of it.ms){const c=m.cloneNode(true);c.setAttribute('display','block');const w=document.createElement('span');w.className='fm';w.append(c);b.append(w)}
+    d.append(b)}
+  return d;
+}
+function fxChap(i){
+  const c=chapters[i],w=document.createElement('div');w.className='fchap';w.dataset.ci=i;
+  for(const h of [c.h,...c.subs]){const d=fxSec(h,h===c.h);if(d)w.append(d)}
+  return w;
+}
+function formulas(i,sid){
+  if(!st.fx)return;FX=FX||fxData();
+  const key=st.fxall?'all':i;
+  if(fxShown!==key){fxShown=key;fxSid=null;fxBody.textContent='';
+    if(st.fxall){chapters.forEach((c,j)=>{const w=fxChap(j);if(!w.children.length)return;
+      const t=document.createElement('button');t.className='ch';t.append(...rich(c.h));t.onclick=()=>jump(c.h);w.prepend(t);fxBody.append(w)})}
+    else{const w=fxChap(i);if(w.children.length)fxBody.append(w);else fxBody.innerHTML='<p class="empty">这一单元没有定义、定理或结论公式。</p>'}
+    fxScope.textContent='';if(st.fxall)fxScope.textContent='全书';else fxScope.append(...rich(chapters[i].h));
+    fxAll.textContent=st.fxall?'本单元':'全览';fxAll.title=st.fxall?'只看当前单元':'显示全书公式';
+    if(st.fxall){const w=fxBody.querySelector(`.fchap[data-ci="${i}"]`);fxBody.scrollTop=w?w.offsetTop-fxBody.offsetTop:0}else fxBody.scrollTop=0}
+  if(sid===fxSid)return;fxSid=sid;
+  fxBody.querySelectorAll('.fchap').forEach(w=>w.classList.toggle('cur',+w.dataset.ci===i));
+  let on=null;fxBody.querySelectorAll('.fsec').forEach(d=>{const x=d.dataset.sid===sid;d.classList.toggle('cur',x);if(x)on=d});
+  if(on&&!st.fxall){const r=on.getBoundingClientRect(),R=fxBody.getBoundingClientRect();if(r.top<R.top||r.bottom>R.bottom)fxBody.scrollTop+=r.top-R.top-6}
+}
+fxAll.onclick=()=>{st.fxall=!st.fxall;save(st);fxShown=null;spy()};
+
 /* 5. 跟随阅读位置 */
 function render(i){
   shownChap=i;body.textContent='';chapLab.textContent=st.view==='map'?'全部':txt(chapters[i].h);
@@ -209,7 +261,7 @@ function spy(){
   let h=heads[0];for(const x of heads){if(x.getBoundingClientRect().top<160)h=x;else break}
   const i=chapOf.get(h);
   if(st.view==='map'){if(shownChap<0)render(i)}else if(i!==shownChap)render(i);
-  wisdom(chapters[i].h.id);
+  wisdom(chapters[i].h.id);formulas(i,h.id);
   // 当前小节：本身有数据就用它，否则退到本章导入
   if(st.view==='concept')markConcept(DATA[h.id]?h.id:chapters[i].h.id);
   else if(st.view==='outline')markOutline(h.id);
@@ -222,7 +274,7 @@ let tick=false;addEventListener('scroll',()=>{if(!tick){tick=true;setTimeout(()=
 addEventListener('scrollend',spy);addEventListener('load',()=>setTimeout(spy,50));
 box.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{st.view=b.dataset.v;shownChap=-1;curSid=null;apply();spy()});
 
-/* 6. 荧光开关、原文、手写区、收起 */
+/* 6. 荧光开关、原文、公式区、收起 */
 const dots=box.querySelector('.dots');
 for(const [c,n] of CATS){const b=document.createElement('button');b.className='dot hl-'+c;b.dataset.c=c;b.textContent=n;b.title='点击开关'+n+'荧光；双击只看这一类';
   b.onclick=()=>{const i=st.off.indexOf(c);i<0?st.off.push(c):st.off.splice(i,1);st.only=null;apply()};
@@ -257,18 +309,11 @@ function apply(){
   for(const v of ['concept','outline','map'])root.classList.toggle('v-'+v,st.view===v);
   box.querySelectorAll('.tabs button').forEach(b=>{b.classList.toggle('on',b.dataset.v===st.view);b.setAttribute('aria-selected',String(b.dataset.v===st.view))});
   root.classList.toggle('panel-closed',!!st.closed);root.classList.toggle('cmap-on',!st.closed);
-  root.classList.toggle('ink-on',st.ink&&!st.closed);box.querySelector('.inkbtn').classList.toggle('on',st.ink);
-  root.style.setProperty('--ink-w',st.iw+'px');root.style.setProperty('--ink-h',st.ih+'px');
+  root.classList.toggle('fx-on',!!st.fx&&!st.closed);box.querySelector('.fxbtn').classList.toggle('on',!!st.fx);
   filterCards();save(st);curGraph&&setTimeout(()=>curGraph.draw(),0);
 }
-box.querySelector('.inkbtn').onclick=()=>{st.ink=!st.ink;apply()};
+box.querySelector('.fxbtn').onclick=()=>{st.fx=!st.fx;fxShown=null;apply();spy()};
 box.querySelector('.x').onclick=()=>{st.closed=true;apply()};
 reopen.onclick=()=>{st.closed=false;apply();shownChap=-1;spy()};
-const grip=zone.querySelector('.grip');
-grip.addEventListener('pointerdown',e=>{e.preventDefault();try{grip.setPointerCapture(e.pointerId)}catch(x){}root.classList.add('ink-drag');
-  const mv=ev=>{st.cal=true;st.iw=Math.round(Math.min(innerWidth-360,Math.max(300,innerWidth-16-ev.clientX)));st.ih=Math.round(Math.min(innerHeight-200,Math.max(120,innerHeight-8-ev.clientY)));apply()};
-  const up=()=>{grip.removeEventListener('pointermove',mv);grip.removeEventListener('pointerup',up);root.classList.remove('ink-drag')};
-  grip.addEventListener('pointermove',mv);grip.addEventListener('pointerup',up)});
-grip.ondblclick=()=>{delete st.cal;st.iw=DEF[0];st.ih=DEF[1];apply()};
 apply();spy();
 })();
