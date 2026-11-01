@@ -1,7 +1,7 @@
 /* 讲义阅读器（唯一来源：Skill assets/reader/）。一门课只有一个页面，右栏可切换三种视图：
    概念（手工整理的概念关系图，数据在 #concept-data）/ 大纲（当前章的定义、定理、结论、例题、关键词）/ 地图（全部句子荧光的卡片）。
    右上：目录 + 视图；右下：公式区（默认本单元的定义、定理、结论公式，可切全览），关闭公式区时显示智慧区（#wisdom-data）。
-   “原文”去掉全部荧光；“×”收起面板，回到原讲义的左侧目录版面。 */
+   “原文”去掉全部荧光；“×”收起面板，回到原讲义的左侧目录版面。手机上面板是点“阅读面板”才弹出的浮层。 */
 (()=>{
 const KEY='lecture:'+location.pathname;
 const OLD='adhd-concept:'+location.pathname.replace(/\.html$/,encodeURIComponent('（ADHD概念图版）')+'.html');
@@ -26,8 +26,7 @@ const secOf=new Map();   // 概念名 → 小节 id
 for(const [sid,s] of Object.entries(DATA))for(const n of s.nodes)secOf.set(n.n,sid);
 const chapters=[];
 for(const h of heads){if(h.tagName==='H2'||!chapters.length)chapters.push({h,subs:[]});else chapters[chapters.length-1].subs.push(h)}
-const chapOf=new Map();chapters.forEach((c,i)=>{chapOf.set(c.h,i);c.subs.forEach(s=>chapOf.set(s,i))});
-function range(sid){const h=document.getElementById(sid);const out=[];let n=h&&h.nextElementSibling;
+function range(sid){const h=document.getElementById(sid);const out=[];let n=h&&h.nextElementSibling;if(n&&n.matches('section.lz'))n=n.firstElementChild;
   while(n&&!/^H[23]$/.test(n.tagName)){out.push(n);n=n.nextElementSibling}return [h,out]}
 function locate(sid,word){
   const [h,els]=range(sid);if(!h)return null;const w=norm(word);
@@ -36,8 +35,12 @@ function locate(sid,word){
       for(const c of cands)if(norm(txt(c)).includes(w)||norm(vis(c)).includes(w))return c}}
   return h;
 }
-function jump(el){if(!el)return;const d=el.closest('details');if(d)d.open=true;
-  el.scrollIntoView({behavior:'smooth',block:/^H/.test(el.tagName)?'start':'center'});
+const narrow=matchMedia('(max-width:640px)');
+function jump(el){if(!el)return;const d=el.closest('details');if(d)d.open=true;root.classList.remove('m-open');
+  const block=/^H/.test(el.tagName)?'start':'center',far=Math.abs(el.getBoundingClientRect().top)>2*innerHeight;
+  // 屏幕外章节的高度是估的（见 0），远处直接跳过去，排版定下来后再对一次位置
+  el.scrollIntoView({behavior:far?'instant':'smooth',block});   // 页面 CSS 是 scroll-behavior:smooth，'auto' 也会平滑
+  if(far)[80,400].forEach(t=>setTimeout(()=>el.scrollIntoView({behavior:'instant',block}),t));
   el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1600)}
 const goConcept=name=>{const hd=[...main.querySelectorAll('.cpt-head')].find(e=>e.dataset.c===name);if(hd&&!root.classList.contains('plain'))return jump(hd);const sid=secOf.get(name);if(!sid)return;const n=DATA[sid].nodes.find(x=>x.n===name);jump(locate(sid,n.at))};
 
@@ -258,8 +261,8 @@ function render(i){
 }
 function spy(){
   if(!heads.length)return;
-  let h=heads[0];for(const x of heads){if(x.getBoundingClientRect().top<160)h=x;else break}
-  const i=chapOf.get(h);
+  let i=0;for(let j=1;j<chapters.length;j++){if(chapters[j].h.getBoundingClientRect().top<160)i=j;else break}
+  let h=chapters[i].h;for(const x of chapters[i].subs){if(x.getBoundingClientRect().top<160)h=x;else break}
   if(st.view==='map'){if(shownChap<0)render(i)}else if(i!==shownChap)render(i);
   wisdom(chapters[i].h.id);formulas(i,h.id);
   // 当前小节：本身有数据就用它，否则退到本章导入
@@ -313,7 +316,19 @@ function apply(){
   filterCards();save(st);curGraph&&setTimeout(()=>curGraph.draw(),0);
 }
 box.querySelector('.fxbtn').onclick=()=>{st.fx=!st.fx;fxShown=null;apply();spy()};
-box.querySelector('.x').onclick=()=>{st.closed=true;apply()};
-reopen.onclick=()=>{st.closed=false;apply();shownChap=-1;spy()};
-apply();spy();
+box.querySelector('.x').onclick=()=>{if(narrow.matches)return root.classList.remove('m-open');st.closed=true;apply()};
+reopen.onclick=()=>{if(narrow.matches)root.classList.add('m-open');st.closed=false;apply();shownChap=-1;spy()};
+/* 0. 省内存：每章正文在 section.lz 里（derive.py），content-visibility:auto 让屏幕外章节不算样式和排版。
+   没排过的章节按字数、图、行间公式、段落数估高度（系数用四门课实测拟合，中位误差约 10%），排过一次浏览器就记住真实高度，滚动条不乱跳 */
+const LZ=[...main.querySelectorAll(':scope>section.lz')];
+function lzSize(){
+  const p=main.querySelector('section.lz p');const w=Math.max(120,p?p.getBoundingClientRect().width:700);
+  for(const sec of LZ){let t=sec.textContent.replace(/\s+/g,'').length;
+    for(const a of sec.querySelectorAll('annotation'))t-=a.textContent.replace(/\s+/g,'').length;
+    const est=.72*t*703/w+424*sec.querySelectorAll('img').length+12*sec.querySelectorAll('math[display=block]').length
+      +23*sec.querySelectorAll('p,li,tr,h3,h4,summary,figcaption,.block-title').length;
+    sec.style.containIntrinsicSize='auto '+Math.round(est)+'px'}
+}
+let lzW=innerWidth;if(LZ.length)addEventListener('resize',()=>{if(innerWidth!==lzW){lzW=innerWidth;lzSize()}});
+apply();lzSize();spy();
 })();

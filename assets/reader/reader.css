@@ -27,7 +27,7 @@ mark.hl.flash,strong.kt.flash{box-shadow:0 0 0 3px #ffd666;background:#fff6c8}
 /* 2. 右栏：右上 目录 | 视图（概念 / 大纲 / 地图），右下公式区或智慧区 */
 :root{--col-w:470px;--top-h:calc(100vh - 32px)}
 /* 页面原来的左侧目录收起，正文占满左边 */
-html.cmap-on aside,html.cmap-on #toc-button,html.cmap-on .scrim{display:none!important}
+@media (min-width:641px){html.cmap-on aside,html.cmap-on #toc-button,html.cmap-on .scrim{display:none!important}}  /* 手机上留着页面自带的“☰ 目录” */
 html.cmap-on main{margin:0 calc(var(--col-w) + 28px) 0 0!important;max-width:none!important;padding:40px 52px 90px!important;box-shadow:none!important}
 #cmap{position:fixed;top:16px;right:16px;width:var(--col-w);height:var(--top-h);min-height:240px;z-index:20;display:grid;grid-template-columns:1fr 2fr;gap:8px;font-family:var(--sans);font-size:13px;color:#2c3340}
 #cmap>*{background:#fbfbfd;border:1px solid #e1e5ec;border-radius:14px;box-shadow:0 6px 22px rgba(30,40,60,.08);overflow:hidden;display:flex;flex-direction:column;min-height:0}
@@ -196,3 +196,11 @@ html.fx-on #formula{display:flex}
 #formula .fi .k{display:block;font-size:11.5px;font-weight:700;color:#6e4a9c;margin-bottom:2px}
 #formula .fm{display:block;overflow-x:auto;padding:2px 0}
 #formula .fm math{font-size:14px}
+/* 省内存：每章是一个 section.lz（derive.py），屏幕外的章节跳过样式和排版；没排过的章节高度由 reader.js 估算，排过一次后记住真实高度 */
+section.lz{content-visibility:auto;contain-intrinsic-size:auto 3000px}
+@media print{section.lz{content-visibility:visible}}
+/* 手机：面板不再占半屏，改成点“阅读面板”才弹出的浮层（不写进 st.closed，不影响电脑上的设置）；放在最后，盖过前面的 #cmap、#cmap-open */
+@media (max-width:640px){html.cmap-on main{margin:0!important;padding:20px 16px 80px!important}
+ #cmap{display:none;left:8px;right:8px;top:8px;width:auto;height:calc(100dvh - 16px);z-index:41}
+ html.m-open:not(.panel-closed) #cmap{display:grid}
+ #cmap-open{display:block;top:auto;bottom:14px;right:14px}html.m-open:not(.panel-closed) #cmap-open{display:none}}

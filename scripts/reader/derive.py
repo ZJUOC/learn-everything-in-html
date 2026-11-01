@@ -2,7 +2,7 @@
 
 python3 derive.py [课程...]   默认全部课程
 步骤：同步 assets → 句子荧光（highlight.py）→ 词语荧光（keywords.py，有 txt 才做）→ 密集荧光（dense.py，LECTURE_DENSE=0 关闭）
-      → 概念小标题与智慧区（wisdom.py）→ 嵌入概念关系数据（concept_map.py）。
+      → 概念小标题与智慧区（wisdom.py）→ 图片懒加载、按章包 section.lz（perf）→ 嵌入概念关系数据（concept_map.py）。
 右栏三种视图（概念 / 大纲 / 地图）、右下公式区与智慧区、原文模式、收起面板都由 assets/reader/reader.js 在页面里完成。
 """
 import hashlib, json, os, re, sys
@@ -16,6 +16,24 @@ from bs4 import BeautifulSoup
 from common import base
 
 DENSE = os.environ.get('LECTURE_DENSE', '1') != '0'
+
+
+def perf(soup):
+    """省内存：正文图片懒加载；每章（h2 到下一个 h2）包进 section.lz，reader.css 用 content-visibility 跳过屏幕外章节的样式和排版。"""
+    for img in soup.select('main img[src]'):
+        img['loading'], img['decoding'] = 'lazy', 'async'
+    for h in soup.main.find_all('h2', recursive=False):
+        nxt = h.find_next_sibling()
+        if nxt is not None and nxt.name == 'section' and 'lz' in (nxt.get('class') or []):
+            continue
+        items, n = [], h.next_sibling
+        while n is not None and getattr(n, 'name', None) not in ('h2', 'footer'):
+            items.append(n)
+            n = n.next_sibling
+        sec = soup.new_tag('section', attrs={'class': 'lz'})
+        h.insert_after(sec)
+        for x in items:
+            sec.append(x.extract())
 print('ROOT', ROOT, '课程', len(COURSES))
 sync_assets()
 ver = hashlib.sha1(b''.join((TOOLS / f).read_bytes() for f in ('reader.css', 'reader.js'))).hexdigest()[:8]
@@ -46,6 +64,7 @@ for c in sys.argv[1:] or COURSES:
         nh, nw, wp = wisdom_apply(soup, c)
         if nh or nw or wp:
             msg.append(f'概念小标题 {nh} 个  智慧 {nw} 个单元' + (f'，{len(wp)} 个问题：' + '；'.join(wp) if wp else ''))
+    perf(soup)
     blob = BeautifulSoup('<script id="concept-data" type="application/json"></script>', 'html.parser').script
     blob.string = json.dumps(data, ensure_ascii=False).replace('</', '<\\/')
     soup.head.append(soup.new_tag('link', rel='stylesheet', href=f'资源/阅读器/reader.css?v={ver}'))
