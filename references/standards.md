@@ -53,7 +53,7 @@
 14. 复积分、电势等积分结论用参数化数值积分复核（中点法或 scipy），不要只核对代数推导。
 15. `contact_sheet.py crop` 的 spec 键名不要带扩展名（会生成 `x.png.png`），并会在输出目录写 `裁切清单.json`；用完要并入 `制作记录/构建/<课程>原图裁切清单.json` 并删除；裁切输出目录是 `ROOT/资源/<课程>原图`。
 16. 复变的旧 `build_complex.py` 已废弃，统一用 `build_lecture.py`。
-17. 自绘图写成脚本（例：讲义项目的 `制作记录/构建/draw_<课程>_vN.py`，输出到 `资源/<课程>原图/`）：按公式算坐标、直接输出 SVG，并对图中每个数值结论做断言、写 json。查看效果：本机无 rsvg/ImageMagick 时，用 Playwright `chromium.launch(channel='chrome')` 截图；标签重叠、曲线越界要逐张看。等值线用 contourpy 求折线，再用 SVG clipPath 裁到区域内。
+17. 自绘图写成脚本（例：讲义项目的 `制作记录/构建/draw_<课程>_vN.py`，输出到 `资源/<课程>原图/`）：按公式算坐标、直接输出 SVG，并对图中每个数值结论做断言、写 json。查看效果：本机无 rsvg/ImageMagick 时，用 Playwright `chromium.launch(channel='chrome')` 截图；标签重叠、曲线越界要逐张看。等值线用 contourpy 求折线，再用 SVG clipPath 裁到区域内。图里的公式文字不能留源码写法：SVG 的 `<text>` 不认 LaTeX 和 `^`，`e^(iπ/n)` 会原样显示。上标用 `scripts/svg_text.py` 的 `sup()` 生成 tspan，下标用 Unicode 下标字符（zₙ、S₁）；出图后跑 `svg_text.py --check 资源/*原图/*.svg`，要求没有输出。
 18. 复现：Skill 必须能从源稿重建出成品。改了构建脚本或阅读器之后，把 ROOT 复制到 scratchpad，`LECTURE_ROOT=<副本> python3 $S/build_all.py`，再与原成品比较：底稿逐字节 `cmp`，页面比较 `<main>` 和 `#concept-data`；不同就要能逐条解释。2026-10-14 的整理就是这样验证的（四门课逐字节相同，物理只差有意改动）。
 19. 不要用 `re.sub` / `re.subn` 的替换串插入 JSON 或 TeX：替换串里的反斜杠会被当成转义（`\\bar` 变成退格符 + `ar`）。用函数作替换参数，或改用 BeautifulSoup 插节点。同理，Python 字符串里写 TeX 一律用原始字符串，否则 `\f`、`\b`、`\t` 会变成控制字符（复变正文曾出现 `\x0crac`）。
 20. 一致性测试：改了写作规则或脚本后，用同一份输入（例如一本教材的一节）让 3 个互不知情的代理各自从零按 Skill 做讲义，再 `format_check.py a.html b.html c.html` 对照结构画像，并收集它们“不得不自己拿主意”的地方，补进规则。2026-10-14 用赵凯华《光学》§4 做过一次：三份都 PASS、0 警告，例题打头比例都是 100%；差异只在单元数（3 或 4）、补充例题数（7—10）和加粗来源行写法，已在 mainlines.md 里定死。

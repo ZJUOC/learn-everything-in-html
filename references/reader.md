@@ -81,3 +81,6 @@
 1. 内置浏览器窗格隐藏时不派发 scroll 事件、暂停 requestAnimationFrame，截图是空白。滚动跟随用 setTimeout 节流，并在 scrollend、load 时再同步一次；测试时 `dispatchEvent(new Event('scroll'))`，用 DOM 读数（getBoundingClientRect、类名）代替截图。
 2. 本地预览端口 8765 可能被别的程序占用，换端口自己起 `python3 -m http.server`，测完关掉。
 3. 测完清掉 localStorage 里 `lecture:` 开头的键（desktop_qa 已自动清），免得测试状态留给读者。
+
+## 图片放大框
+点图打开的放大框（模板里的 `dialog`）要把图注的节点克隆过去（`cloneNode`，并去掉 id），不能用 `textContent`：MathML 的 textContent 会把公式压成一串字母，还带出 annotation 里的 LaTeX 源码（2026-11 复变 13.1 节的图注就是这样）。`desktop_qa.py` 的 `lightboxMath` 检查放大后图注里的公式个数是否和原图注一致。
