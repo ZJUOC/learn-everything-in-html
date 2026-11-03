@@ -10,7 +10,7 @@ from common import ROOT, REC, TOOLS, COURSES, sync_assets
 from highlight import process
 from concept_map import build
 from keywords import apply as kw_apply
-from dense import apply as dense_apply
+from dense import apply as dense_apply, uncovered
 from wisdom import apply as wisdom_apply
 from bs4 import BeautifulSoup
 from common import base
@@ -60,6 +60,9 @@ for c in sys.argv[1:] or COURSES:
         msg.append(f'词语荧光 {done} 处' + (f'，{len(miss)} 个问题：' + '；'.join(miss) if miss else ''))
     if DENSE:
         msg.append(f'密集荧光 {dense_apply(soup, c)} 处')
+        bare = uncovered(soup)
+        if bare:
+            msg.append(f'⚠ {len(bare)} 段没有词语荧光：' + '；'.join(bare[:3]))
     if data:
         nh, nw, wp = wisdom_apply(soup, c)
         if nh or nw or wp:

@@ -1,7 +1,8 @@
 """密集词语荧光：在手工词语荧光（mark.kw）之外，按分句自动给正文加浅一档的荧光（mark.kw2），让每句话隔几个词就有落点，便于跳读。
 
 不追求严格的语义，只求“每个分句都有一两个抓手”：
-- 分句：按中文标点切开文本节点，公式、加粗、已有荧光不动；
+- 分句：按中文标点切开文本节点，公式、加粗、已有词语荧光不动；句子荧光（mark.hl，定义/定理块整块都是）里面照常标，
+  否则这些句子只有一层底色、没有落点；
 - 挑词：jieba 词性分词，名词、动名词、实义动词、成语优先，相邻名词合并（“复合函数”）；
   加粗术语、概念关系里的概念名、手工荧光词作为词典并加分；
 - 密度：分句每约 6 个汉字一个，最多 4 个；紧挨已加粗/已荧光处的短分句少标一个。
@@ -31,7 +32,7 @@ def _plain(t):
 
 
 def domain_terms(soup, course):
-    terms = {_plain(s.get_text()) for s in soup.main.find_all(['strong', 'mark'])}
+    terms = {_plain(s.get_text()) for s in soup.main.find_all(['strong', 'mark']) if 'kw2' not in (s.get('class') or [])}
     f = REC / '概念关系' / f'{course}.txt'
     if f.exists():
         for ln in f.read_text().splitlines():
@@ -40,10 +41,10 @@ def domain_terms(soup, course):
     return {t for t in terms if 2 <= len(t) <= 8 and CJK.search(t) and '$' not in t}
 
 
-def pick(seg, dom, n):
+def pick(seg, dom, n, cut=None):
     """在一个分句里挑 n 个不重叠的词，返回 [(start, end)]。"""
     toks, i = [], 0
-    for w, f in pseg.cut(seg):
+    for w, f in (cut or pseg.cut)(seg):
         toks.append([w, f, i]); i += len(w)
     # 相邻名词合并
     merged = []
@@ -80,16 +81,25 @@ def _marked(n):
     return n is not None and getattr(n, 'name', None) in ('strong', 'mark', 'math')
 
 
-def apply(soup, course):
+def _skip(t):
+    return t.find_parent(['math', 'strong', 'a', 'code']) is not None or \
+        t.find_parent(lambda x: x.name == 'mark' and {'kw', 'kw2'} & set(x.get('class') or [])) is not None
+
+
+def apply(soup, course, only_hl=False):
+    """only_hl=True 只补句子荧光里面的文字（给已生成、外面已有密集荧光的页面补漏，不动其余）。"""
     dom = domain_terms(soup, course)
+    # 每门课一个新词典：同一进程里先后处理几门课时，前一门的概念词不会漏进后一门（否则单跑一门和全部重建结果不同）
+    tk = jieba.Tokenizer()
     for t in dom:
-        jieba.add_word(t, 2000)
+        tk.add_word(t, 2000)
+    cut = pseg.POSTokenizer(tk).cut
     paras = [p for p in soup.main.find_all(['p', 'li'])
              if not p.find_parent(['figcaption', 'table', 'nav', 'summary']) and not p.find(['p', 'li'])]
     total = 0
     for p in paras:
         for t in list(p.find_all(string=True)):
-            if t.find_parent(['math', 'strong', 'mark', 'a', 'code']):
+            if _skip(t) or (only_hl and t.find_parent('mark', class_='hl') is None):
                 continue
             s = str(t)
             if len(CJK.findall(s)) < 3:
@@ -103,7 +113,7 @@ def apply(soup, course):
                     # 紧挨加粗/荧光（中间没有标点）的分句少标一个
                     if n and ((k == 0 and _marked(t.previous_sibling)) or (k == len(parts) - 1 and _marked(t.next_sibling))):
                         n -= 1 if m < 9 else 0
-                    for a, b in pick(seg, dom, n) if n else []:
+                    for a, b in pick(seg, dom, n, cut) if n else []:
                         spans.append((off + a, off + b))
                 off += len(seg)
             if not spans:
@@ -117,6 +127,18 @@ def apply(soup, course):
             t.replace_with(*nodes)
             total += len(spans)
     return total
+
+
+def uncovered(soup, least=12):
+    """验收：正文里汉字不少于 least、却没有任何词语荧光（kw/kw2）或加粗的段落，返回 [(前 30 字)]。"""
+    out = []
+    for p in soup.main.find_all(['p', 'li']):
+        if p.find_parent(['figcaption', 'table', 'nav', 'summary']) or p.find(['p', 'li']) or 'block-title' in (p.get('class') or []):
+            continue
+        txt = ''.join(t for t in p.find_all(string=True) if not t.find_parent('math'))
+        if len(CJK.findall(txt)) >= least and not p.select('mark.kw, mark.kw2, strong'):
+            out.append(_plain(txt)[:30])
+    return out
 
 
 if __name__ == '__main__':
