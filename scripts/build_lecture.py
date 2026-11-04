@@ -84,7 +84,8 @@ for h in main.find_all(['h3','h4']):
         counts['practice']=counts.get('practice',0)+1
 for fig in main.find_all('figure'):
     im=fig.find('img');b=soup.new_tag('button',attrs={'class':'figure-open','type':'button','aria-label':'放大：'+im.get('alt','配图')});im.wrap(b)
-out.write_text(str(soup))
+from mathglue import glue  # 行内公式和紧贴的标点不分行（见 mathglue.py）
+out.write_text(glue(str(soup)))
 r={'output':str(out),'source_chars':len(text),'html_bytes':out.stat().st_size,'math':len(main.find_all('math')),'figures':len(main.find_all('figure')),'details':len(main.find_all('details')),'blocks':counts,'pandoc_warnings':p.stderr,'notes':notes}
 if c.get('report'):P(c['report']).write_text(json.dumps(r,ensure_ascii=False,indent=2))
 print(json.dumps(r,ensure_ascii=False))

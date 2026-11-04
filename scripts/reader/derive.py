@@ -14,6 +14,8 @@ from dense import apply as dense_apply, uncovered
 from wisdom import apply as wisdom_apply
 from bs4 import BeautifulSoup
 from common import base
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from mathglue import glue, unglue   # 行内公式和紧贴的标点不分行
 
 DENSE = os.environ.get('LECTURE_DENSE', '1') != '0'
 
@@ -39,7 +41,7 @@ sync_assets()
 ver = hashlib.sha1(b''.join((TOOLS / f).read_bytes() for f in ('reader.css', 'reader.js'))).hexdigest()[:8]
 report, missing = {}, []
 for c in sys.argv[1:] or COURSES:
-    soup = BeautifulSoup(base(c).read_text(), 'html.parser')
+    soup = BeautifulSoup(unglue(base(c).read_text()), 'html.parser')
     st = {}
     n = process(soup, st)
     report[c] = {'total': n, **{k: v for k, v in st.items() if k != '_samples'}, 'samples': st.get('_samples', {})}
@@ -73,7 +75,7 @@ for c in sys.argv[1:] or COURSES:
     soup.head.append(soup.new_tag('link', rel='stylesheet', href=f'资源/阅读器/reader.css?v={ver}'))
     soup.body.append(blob)
     soup.body.append(soup.new_tag('script', src=f'资源/阅读器/reader.js?v={ver}'))
-    (ROOT / f'{c}.html').write_text(str(soup))
+    (ROOT / f'{c}.html').write_text(glue(str(soup)))
     print(c, 'ok ', '  '.join(msg))
 (REC / '构建' / '荧光标注报告.json').write_text(json.dumps(report, ensure_ascii=False, indent=1))
 if missing:

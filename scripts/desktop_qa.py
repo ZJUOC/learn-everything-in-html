@@ -30,6 +30,7 @@ async def main():
         if r['figures']:
             await pg.locator('main figure img').first.click();r['lightbox']=await pg.locator('dialog').evaluate('e=>e.open');await pg.locator('dialog .close').click()
             # 放大框里的图注要是原样的公式：用 textContent 复制会把 MathML 压成纯文字并带出 LaTeX 源码
+            r['mathGlue']=await pg.evaluate(r"""()=>{const O='（(「“【《',C='，。、；：！？）」”】》';let n=0;for(const m of document.querySelectorAll('main math:not([display=block])')){if(m.closest('.mg'))continue;const a=m.previousSibling,b=m.nextSibling;if((a&&a.nodeType===3&&O.includes(a.data.slice(-1)))||(b&&b.nodeType===3&&C.includes(b.data[0])))n++}return n}""")
             r['lightboxMath']=await pg.evaluate("""()=>{const f=[...document.querySelectorAll('main figure')].find(f=>f.querySelector('figcaption math'));if(!f)return true;f.querySelector('.figure-open').click();const d=document.querySelector('dialog'),ok=d.querySelectorAll('p math').length===f.querySelectorAll('figcaption math').length;d.close();return ok}""")
         await pg.locator('#toggle').click();r['allExpanded']=await pg.locator('details').evaluate_all('ds=>ds.every(d=>d.open)')
         r['expandedOverflow']=await pg.evaluate('document.documentElement.scrollWidth>innerWidth')
@@ -53,6 +54,6 @@ async def main():
         await pg.set_viewport_size({'width':1280,'height':900});r['narrowDesktop']=await pg.evaluate('({w:innerWidth,sw:document.documentElement.scrollWidth})')
         r['errors']=err;await b.close();return r
 r=asyncio.run(main());srv.shutdown()
-ok=r['scrollWidth']<=r['width'] and not r['mathErrors'] and not r['brokenImages'] and all(s.endswith('loaded') for s in r['fonts']) and not r['badAnchors'] and not r['rawDollar'] and r.get('lightbox',True) and r.get('lightboxMath',True) and r['allExpanded'] and not r['expandedOverflow'] and r['allCollapsed'] and r['narrowDesktop']['sw']<=r['narrowDesktop']['w'] and not r['errors'] and all(v not in (0,False) for v in r.get('reader',{}).values())
+ok=r['scrollWidth']<=r['width'] and not r['mathErrors'] and not r['brokenImages'] and all(s.endswith('loaded') for s in r['fonts']) and not r['badAnchors'] and not r['rawDollar'] and r.get('lightbox',True) and r.get('lightboxMath',True) and not r.get('mathGlue',0) and r['allExpanded'] and not r['expandedOverflow'] and r['allCollapsed'] and r['narrowDesktop']['sw']<=r['narrowDesktop']['w'] and not r['errors'] and all(v not in (0,False) for v in r.get('reader',{}).values())
 r['PASS']=ok
 (outdir/'qa.json').write_text(json.dumps(r,ensure_ascii=False,indent=1));print(json.dumps(r,ensure_ascii=False))

@@ -82,5 +82,8 @@
 2. 本地预览端口 8765 可能被别的程序占用，换端口自己起 `python3 -m http.server`，测完关掉。
 3. 测完清掉 localStorage 里 `lecture:` 开头的键（desktop_qa 已自动清），免得测试状态留给读者。
 
+## 公式和标点不分行
+Chrome 允许在行内 `<math>` 和紧贴的中文括号、逗号之间换行，窄表格里会出现 “fᵏ（” / “k≥1” / “）” 三行，或者一行以 “，” 开头（2026-11 复变零点级数表）。U+2060 等不可见的禁止换行字符在 Chrome 里不起作用。`scripts/mathglue.py` 把紧贴的标点和公式包进 `span.mg`（`white-space:nowrap`）。“公式（公式）” 会连成一串。公式在荧光或加粗末尾、逗号在标签外时，先把逗号挪进标签。`build_lecture.py` 写出时包；`derive.py` 读底稿时先拆开，写出时再包，所以荧光脚本看不到这些 span。手改过的页面跑 `python3 scripts/mathglue.py 页面.html`，可以重复运行。`desktop_qa.py` 的 `mathGlue` 数漏包的公式，要求为 0。
+
 ## 图片放大框
 点图打开的放大框（模板里的 `dialog`）要把图注的节点克隆过去（`cloneNode`，并去掉 id），不能用 `textContent`：MathML 的 textContent 会把公式压成一串字母，还带出 annotation 里的 LaTeX 源码（2026-11 复变 13.1 节的图注就是这样）。`desktop_qa.py` 的 `lightboxMath` 检查放大后图注里的公式个数是否和原图注一致。
