@@ -51,15 +51,17 @@ if not latin_ok:html=re.sub(r'@font-face\{font-family:"Anthropic (Serif|Sans)";[
 if not cjk.exists():html=re.sub(r'@font-face\{font-family:"Lecture Song";[^}]*\}','',html)
 html=re.sub(r'<p>(<math display="block".*?</math>)</p>',r'<div class="display math">\1</div>',html,flags=re.S)
 # \bar / \overline：Chrome 的 MathML 横线紧贴字母（\overline 还缩成一小段），换成 CSS 上边框，宽度随内容、留出间隙
+# \bar（pandoc 记作 ‾）左右各缩 0.07em：相邻的 \bar A\bar B\bar C 横线分开，不会看成 \overline{ABC}
 OVL='<mrow style="border-top:0.065em solid;padding-top:0.18em;margin-top:0.05em">'
+BAR='<mrow style="border-top:0.065em solid;padding-top:0.18em;margin:0.05em 0.07em 0">'
 def overline(h):
-    pat=re.compile(r'<mo accent="true">[‾¯]</mo></mover>')
+    pat=re.compile(r'<mo accent="true">([‾¯])</mo></mover>')
     while (m:=pat.search(h)):
         d=0
         for t in reversed(list(re.finditer(r'<mover>|</mover>',h[:m.start()]))):
             if t.group()=='</mover>':d+=1
             elif d:d-=1
-            else:h=h[:t.start()]+OVL+h[t.end():m.start()]+'</mrow>'+h[m.end():];break
+            else:h=h[:t.start()]+(BAR if m.group(1)=='‾' else OVL)+h[t.end():m.start()]+'</mrow>'+h[m.end():];break
         else:raise ValueError('unbalanced mover')
     return h
 html=overline(html)
