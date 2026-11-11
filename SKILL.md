@@ -42,7 +42,7 @@ S = 本 Skill 的 `scripts/`。ROOT = 讲义项目目录，按顺序取：环境
 8. **格式与覆盖检查**：`python3 $S/format_check.py "ROOT/制作记录/构建/底稿/NN 课程.html"`，要求 `PASS`；它检查 mainlines.md 末尾“不随主线变化的格式”。再 `python3 $S/coverage_check.py "ROOT/制作记录/NN <简称>制作记录.md" "ROOT/制作记录/构建/底稿/NN 课程.html"`，要求 `PASS`：覆盖表每行都有讲义位置，且位置真实存在；五类知识点来源都有行（或写明不适用）；每个术语在讲义里加粗出现。
 9. **数学核验**（每个中间式，不只是最终答案）：写 `ROOT/制作记录/核验/validate_<简称>.py`，用 fractions/sympy/枚举/模拟独立复核**每个数值结论和练习答案**，输出 json 报告。
 10. **阅读页面数据**：先 `python3 $S/reader/concept_map.py skeleton "<NN 课程>"`，按骨架**手工写** `ROOT/制作记录/概念关系/<NN 课程>.txt`（3 栏；没有它页面就没有“概念”视图，derive.py 会打印 ⚠）；再写 `词语荧光/<NN 课程>.txt`；用户要概念小标题、智慧区时才写第 4 栏和 `智慧/<NN 课程>.txt`（格式见 reader.md）。然后 `python3 $S/reader/derive.py "<NN 课程>"`（密集荧光自动补，不用写数据）。
-11. **桌面验收**：`python3 $S/desktop_qa.py "ROOT/NN 课程.html" <scratchpad>/qa/<简称> <锚点id...>`，要求 `PASS: true`（含阅读面板三种视图、原文、收起；长公式需要横向滚动不算问题）；只抽看 3—4 张截图。
+11. **桌面验收**：`python3 $S/desktop_qa.py "ROOT/NN 课程.html" <scratchpad>/qa/<简称> <锚点id...>`，要求 `PASS: true`（含阅读面板三种视图、原文、收起、`hashLanding` 带锚点打开的落点；长公式需要横向滚动不算问题）；只抽看 3—4 张截图。页面里有跨讲义链接（`NN 课程.html#锚点`），或改过 reader.js / reader.css / `perf()` 时，再跑 `python3 $S/xlink_check.py ROOT`；部署网站后加上网址复测线上（reader.md“跳转落点”）。
 12. **收尾**：
     - 更新 `开始阅读.html`（`new_project.py` 生成的目录页会自动刷新）和 `00 阅读指南.md` 中该课程那一行。
     - 写本课制作记录：材料哈希前 12 位、范围、主线、纠错、练习与来源题号对照、核验结果、新经验。

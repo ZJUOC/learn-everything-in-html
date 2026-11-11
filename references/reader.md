@@ -87,3 +87,11 @@ Chrome 允许在行内 `<math>` 和紧贴的中文括号、逗号之间换行，
 
 ## 图片放大框
 点图打开的放大框（模板里的 `dialog`）要把图注的节点克隆过去（`cloneNode`，并去掉 id），不能用 `textContent`：MathML 的 textContent 会把公式压成一串字母，还带出 annotation 里的 LaTeX 源码（2026-11 复变 13.1 节的图注就是这样）。`desktop_qa.py` 的 `lightboxMath` 检查放大后图注里的公式个数是否和原图注一致。
+
+## 跳转落点（章节懒排版）
+主讲义每章是 `section.lz`（`derive.py` 的 `perf()`；`reader.css` 给 `content-visibility:auto`，`reader.js` 按字数估高度）。没排过版的章节高度是估的，跳到远处后，途经和落点附近的章节第一次排版会改成真实高度，把目标挤走。浏览器默认的锚点跳转只跳一次，所以“带 `#锚点` 打开页面”会偏几百到上万像素：2026-11-11 网站上，复习页、题型池指向主讲义的 107 个跨讲义链接偏了 94 个；只在 80/400 ms 补对两次也不够，字体、图片载完前排版还在变。
+
+规则：
+- 页面里所有跳转都走 `reader.js` 的 `settle(el,block)`：每 100 ms 看一次目标有没有被挤动，挤动了就再对一次，连续 3 次不动才停；最多 4 s，用户一滚动或点击就放手。`jump()`（目录、概念、大纲、公式区）、带 `#锚点` 打开、`hashchange`（前进后退），以及正文里的页内 `#` 链接（拦截后 `pushState`）都已接上。新增的跳转入口不要直接 `scrollIntoView`/`location.hash=`，调 `jump()` 或 `settle()`。
+- 改了 `reader.js`、`reader.css` 的 `content-visibility`、`derive.py` 的 `perf()`，或新做了带跨讲义链接（`NN 课程.html#锚点`）的页面：本地跑 `python3 $S/xlink_check.py ROOT`，部署后再跑 `python3 $S/xlink_check.py ROOT https://yeshuangxixue.cn/notes/`，都要 `PASS`。`desktop_qa.py` 的 `hashLanding` 对单页做同样的检查（给定锚点 + 后半部分抽 3 个单元标题）。
+- 只改 `reader.js`/`reader.css` 时不必重跑 `derive.py`（它会重算密集荧光）：把 assets 复制到 `ROOT/资源/阅读器/`，再把各页 `reader.css?v=`、`reader.js?v=` 改成 `sha1(reader.css+reader.js)` 的前 8 位，浏览器才不会读缓存。

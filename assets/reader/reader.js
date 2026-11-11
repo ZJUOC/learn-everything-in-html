@@ -36,11 +36,19 @@ function locate(sid,word){
   return h;
 }
 const narrow=matchMedia('(max-width:640px)');
+/* 屏幕外章节的高度是估的（见 0）。跳到远处后，途经和落点附近的章节第一次排版会改变高度，把目标挤走；
+   所以跳完要反复对位：每 100ms 看一次目标有没有被挤动，挤动了就再对一次，连续 3 次不动才算停稳（最多 4 s，用户一滚动或点击就放手）。
+   只对一两次（例如 80/400ms）不够：带 #锚点 新打开页面时，排版要到字体、图片载完才定下来，实测会偏几千像素。 */
+function settle(el,block){let exp=null,ok=0,stop=false;const end=Date.now()+4000,off=()=>{stop=true},evs=['wheel','touchstart','keydown','mousedown'];
+  evs.forEach(t=>addEventListener(t,off,{passive:true}));
+  const tick=()=>{const t=el.getBoundingClientRect().top;
+    if(stop||Date.now()>end||(exp!==null&&Math.abs(t-exp)<2&&++ok>=3)){evs.forEach(t=>removeEventListener(t,off));return}
+    if(exp===null||Math.abs(t-exp)>=2){ok=0;el.scrollIntoView({behavior:'instant',block});exp=el.getBoundingClientRect().top}
+    setTimeout(tick,100)};
+  tick()}
 function jump(el){if(!el)return;const d=el.closest('details');if(d)d.open=true;root.classList.remove('m-open');
   const block=/^H/.test(el.tagName)?'start':'center',far=Math.abs(el.getBoundingClientRect().top)>2*innerHeight;
-  // 屏幕外章节的高度是估的（见 0），远处直接跳过去，排版定下来后再对一次位置
-  el.scrollIntoView({behavior:far?'instant':'smooth',block});   // 页面 CSS 是 scroll-behavior:smooth，'auto' 也会平滑
-  if(far)[80,400].forEach(t=>setTimeout(()=>el.scrollIntoView({behavior:'instant',block}),t));
+  if(far)settle(el,block);else el.scrollIntoView({behavior:'smooth',block});   // 页面 CSS 是 scroll-behavior:smooth，'auto' 也会平滑
   el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1600)}
 const goConcept=name=>{const hd=[...main.querySelectorAll('.cpt-head')].find(e=>e.dataset.c===name);if(hd&&!root.classList.contains('plain'))return jump(hd);const sid=secOf.get(name);if(!sid)return;const n=DATA[sid].nodes.find(x=>x.n===name);jump(locate(sid,n.at))};
 
@@ -331,4 +339,11 @@ function lzSize(){
 }
 let lzW=innerWidth;if(LZ.length)addEventListener('resize',()=>{if(innerWidth!==lzW){lzW=innerWidth;lzSize()}});
 apply();lzSize();spy();
+/* 带 #锚点 打开（跨讲义跳转）、前进后退、正文里的页内链接：都走 settle，不交给浏览器默认的一次性跳转 */
+const byHash=h=>{try{return h&&h.length>1?document.getElementById(decodeURIComponent(h.slice(1))):null}catch(e){return null}};
+const land=el=>{if(!el)return;const d=el.closest('details');if(d)d.open=true;settle(el,/^H/.test(el.tagName)?'start':'center')};
+if(location.hash)land(byHash(location.hash));
+addEventListener('hashchange',()=>land(byHash(location.hash)));
+main.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a||e.button||e.metaKey||e.ctrlKey||e.shiftKey)return;
+  const el=byHash(a.getAttribute('href'));if(!el)return;e.preventDefault();history.pushState(null,'',a.getAttribute('href'));jump(el)});
 })();

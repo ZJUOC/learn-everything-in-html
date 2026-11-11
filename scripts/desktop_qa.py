@@ -3,7 +3,9 @@
 用法：desktop_qa.py <html 文件> <输出目录> [锚点id ...]
 检查：1440/1280 宽无横向溢出、MathML 无 merror、图片与字体加载、站内锚点有效、放大框（图注公式原样显示）、答案全开/全收；
 有阅读器面板（#cmap）时，检查概念/大纲/地图三种视图、原文模式、收起与重新打开；
-并对每个锚点截图（已开启 reduced motion，避免平滑滚动造成空白截图）。"""
+并对每个锚点截图（已开启 reduced motion，避免平滑滚动造成空白截图）；
+hashLanding：对给定锚点和后半部分抽的 3 个单元标题，各自“带 #锚点 全新打开”，4 s 后目标须在视口顶部附近（−5～600 px）。
+  跨讲义链接就是这样打开页面的；章节懒排版（section.lz，高度是估的）会把浏览器默认的一次性跳转挤偏几千像素（2026-11-11 网站上 107 个跨讲义链接偏了 94 个）。"""
 import sys,json,asyncio,threading,functools,http.server,socketserver,urllib.parse
 from pathlib import Path
 from playwright.async_api import async_playwright
@@ -51,9 +53,15 @@ async def main():
             await pg.locator('#cmap-open').click()
             rd['reopened']=await pg.evaluate("()=>getComputedStyle(document.querySelector('#cmap')).display!=='none'")
             await pg.evaluate('localStorage.clear()');r['reader']=rd
+        # 带 #锚点 全新打开的落点（跨讲义跳转、刷新、分享链接都是这种打开方式）
+        hs=await pg.evaluate("()=>{const h=[...document.querySelectorAll('main h2[id]')].map(e=>e.id);return [.5,.75,1].map(f=>h[Math.max(0,Math.ceil(h.length*f)-1)]).filter(Boolean)}")
+        async def land(a):
+            q=await b.new_page(viewport={'width':1440,'height':1000});await q.goto(url+'#'+urllib.parse.quote(a),wait_until='load');await q.wait_for_timeout(4000)
+            t=await q.evaluate("a=>{const e=document.getElementById(a);return e?Math.round(e.getBoundingClientRect().top):null}",a);await q.evaluate('localStorage.clear()');await q.close();return a,t
+        r['hashLanding']=dict(await asyncio.gather(*[land(a) for a in dict.fromkeys(anchors[:3]+hs)]))
         await pg.set_viewport_size({'width':1280,'height':900});r['narrowDesktop']=await pg.evaluate('({w:innerWidth,sw:document.documentElement.scrollWidth})')
         r['errors']=err;await b.close();return r
 r=asyncio.run(main());srv.shutdown()
-ok=r['scrollWidth']<=r['width'] and not r['mathErrors'] and not r['brokenImages'] and all(s.endswith('loaded') for s in r['fonts']) and not r['badAnchors'] and not r['rawDollar'] and r.get('lightbox',True) and r.get('lightboxMath',True) and not r.get('mathGlue',0) and r['allExpanded'] and not r['expandedOverflow'] and r['allCollapsed'] and r['narrowDesktop']['sw']<=r['narrowDesktop']['w'] and not r['errors'] and all(v not in (0,False) for v in r.get('reader',{}).values())
+ok=r['scrollWidth']<=r['width'] and not r['mathErrors'] and not r['brokenImages'] and all(s.endswith('loaded') for s in r['fonts']) and not r['badAnchors'] and not r['rawDollar'] and r.get('lightbox',True) and r.get('lightboxMath',True) and not r.get('mathGlue',0) and r['allExpanded'] and not r['expandedOverflow'] and r['allCollapsed'] and r['narrowDesktop']['sw']<=r['narrowDesktop']['w'] and not r['errors'] and all(v not in (0,False) for v in r.get('reader',{}).values()) and all(t is not None and -5<=t<=600 for t in r['hashLanding'].values())
 r['PASS']=ok
 (outdir/'qa.json').write_text(json.dumps(r,ensure_ascii=False,indent=1));print(json.dumps(r,ensure_ascii=False))
