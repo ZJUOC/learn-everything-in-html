@@ -94,4 +94,5 @@ Chrome 允许在行内 `<math>` 和紧贴的中文括号、逗号之间换行，
 规则：
 - 页面里所有跳转都走 `reader.js` 的 `settle(el,block)`：每 100 ms 看一次目标有没有被挤动，挤动了就再对一次，连续 3 次不动才停；最多 4 s，用户一滚动或点击就放手。`jump()`（目录、概念、大纲、公式区）、带 `#锚点` 打开、`hashchange`（前进后退），以及正文里的页内 `#` 链接（拦截后 `pushState`）都已接上。新增的跳转入口不要直接 `scrollIntoView`/`location.hash=`，调 `jump()` 或 `settle()`。
 - 改了 `reader.js`、`reader.css` 的 `content-visibility`、`derive.py` 的 `perf()`，或新做了带跨讲义链接（`NN 课程.html#锚点`）的页面：本地跑 `python3 $S/xlink_check.py ROOT`，部署后再跑 `python3 $S/xlink_check.py ROOT https://yeshuangxixue.cn/notes/`，都要 `PASS`。`desktop_qa.py` 的 `hashLanding` 对单页做同样的检查（给定锚点 + 后半部分抽 3 个单元标题）。
+- 没有阅读器的页面（复习页、题型池等只经 `build_lecture.py` 的页面）也会偏：没有懒排版，但字体、公式在跳转后才排好，2026-11-14 实测偏 −111～+1059 px。`lecture-template.html` 的内联脚本在页面没加载 `reader.js` 时自己做一次同样的对位（带 `#锚点` 打开和 `hashchange`）；有 `reader.js` 时让给它，两边不会抢。这类页面要重新 `build_lecture.py` 才带上。
 - 只改 `reader.js`/`reader.css` 时不必重跑 `derive.py`（它会重算密集荧光）：把 assets 复制到 `ROOT/资源/阅读器/`，再把各页 `reader.css?v=`、`reader.js?v=` 改成 `sha1(reader.css+reader.js)` 的前 8 位，浏览器才不会读缓存。
